@@ -1,7 +1,10 @@
+#!/usr/bin/python
+
 import pyglet
 import os
 import random
 import logger
+import keyCash
 
 
 # global control variables and their initialization
@@ -21,12 +24,14 @@ play_field_width = window_width - score_area_width
 play_field__height = window_height - 20
 # sum of all possible positions snake's head can use
 fields = play_field__height * play_field_width / 20
-# last input from user
-last_command = None
+# game stops if this is true
 game_over = False
+# game already runs if this is true
 game_running = False
 window = pyglet.window.Window(window_width, window_height)
 logger = logger.Logger()
+# takes care of user input and its usage
+key_cash = keyCash.KeyCash()
 
 # images
 snake_img = pyglet.image.load(os.path.join('img', 'snake.png'))
@@ -136,8 +141,7 @@ def on_key_press(symbol, modifiers):
             or symbol == pyglet.window.key.RIGHT\
             or symbol == pyglet.window.key.UP\
             or symbol == pyglet.window.key.DOWN:
-        global last_command
-        last_command = symbol
+        key_cash.add_command(symbol)
     global game_running
     # if game is NOT running yet, start it
     if not game_running:
@@ -162,6 +166,7 @@ def movement(dt):
         counter = counter - 1
 
     # move head to the new position
+    last_command = key_cash.get_last_command()
     if last_command == pyglet.window.key.LEFT:
         if is_alive(snake_body[0][0] - 20, snake_body[0][1]):
             snake_body[0][0] = snake_body[0][0] - 20
@@ -192,24 +197,6 @@ def movement(dt):
             return
 
     logger.log_debug("Head position: [" + str(snake_body[0][0]) + ", " + str(snake_body[0][1]) + "]")
-    # death conditions
-    # is snakes's head out of bounds of screen?
-    # global game_over
-    # if (snake_body[0][0] > play_field_width - 18)\
-    #         or (snake_body[0][0] < 20)\
-    #         or (snake_body[0][1] > play_field__height - 18)\
-    #         or (snake_body[0][1] < 20):
-    #     # snake dies
-    #     game_over = True
-    #     return
-    #
-    # # check if snake crashed into his body
-    # counter = 1
-    # while counter < len(snake_body):
-    #     if snake_body[counter][0] == snake_body[0][0] and snake_body[counter][1] == snake_body[0][1]:
-    #         game_over = True
-    #         return
-    #     counter = counter + 1
 
     # apple eating
     global apple
