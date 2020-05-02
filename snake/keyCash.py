@@ -22,3 +22,6 @@ class KeyCash:
         # mark command as used and return it
         self.__last_command[0][1] = True
         return self.__last_command[0][0]
+
+    def reset(self):
+        self.__last_command.clear()
