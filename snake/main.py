@@ -18,26 +18,34 @@ window_width = None
 window_height = None
 
 
+score_top10 = []
+
+
 def load_options():
     global window_width
     global window_height
     global game_speed
+    global score_top10
     try:
-        with open("options.json") as json_file:
-            options = json.load(json_file)
-            for option in options["options"]:
+        with open("data.json") as json_file:
+            data = json.load(json_file)
+            for option in data["options"]:
                 window_width = option["window_width"]
                 window_height = option["window_height"]
                 game_speed = option["game_speed"]
+
+            score_top10 = []
+            for i, record in enumerate(data["best_score"]):
+                score_top10.append(record[str(i)])
     except FileNotFoundError:
-        logger.log_debug("File: options.json was not found. Switching options to default.")
+        logger.log_debug("File: data.json was not found. Switching options to default.")
         game_speed = 12
         window_width = 1060
         window_height = 480
 
 
 # width of area where score, time and more are showed
-score_area_width = 100
+score_area_width = 200
 
 # main window
 load_options()
@@ -104,6 +112,10 @@ fast_speed = 12
 very_fast_speed = 14
 crazy_speed = 16
 
+score_label_x = None
+score_label_y = None
+score = 0
+
 
 def initialize():
     global main_menu
@@ -117,6 +129,9 @@ def initialize():
     global play_field_height
     global play_field_width
     global fields
+    global score
+    global score_label_x
+    global score_label_y
 
     # main menu
     main_menu = menu.Menu(img_provider,
@@ -159,6 +174,13 @@ def initialize():
     # sum of all possible positions snake's head can use
     fields = play_field_height * play_field_width / 20
 
+    # score label position
+    score_label_x = window_width - score_area_width + score_area_width / 2 - 40
+    if window_height == half_height:
+        score_label_y = window_height // 2 + window_height // 3
+    else:
+        score_label_y = window_height // 2 + window_height // 5
+
 
 # after window is opened, this is done
 # and then every time the snake moves
@@ -172,6 +194,9 @@ def on_draw():
         global snake_body
         global score_area_width
         global play_field_height
+        global score_label_x
+        global score_label_y
+        global score_top10
         if game_over:
             # freeze_draw = True
             label_position_x = play_field_width / 2
@@ -270,7 +295,84 @@ def on_draw():
     else:
         window.clear()
         main_menu.batch_menu(batch, sprites)
+
+    draw_score(sprites, batch)
     batch.draw()
+
+
+def draw_score(sprites, batch):
+    sprites.append(pyglet.text.Label("Score:",
+                                     font_name='Times New Roman',
+                                     font_size=16,
+                                     x=score_label_x,
+                                     y=score_label_y,
+                                     anchor_x='left',
+                                     anchor_y='center',
+                                     batch=batch))
+    sprites.append(pyglet.text.Label(" ............"[:-(len(str(score)) * 2)] + " " + str(score),
+                                     color=(34, 226, 53, 255),
+                                     font_name='Times New Roman',
+                                     font_size=16,
+                                     x=score_label_x + 120,
+                                     y=score_label_y - 30,
+                                     anchor_x='right',
+                                     anchor_y='center',
+                                     batch=batch))
+    sprites.append(pyglet.text.Label("TOP 10:",
+                                     font_name='Times New Roman',
+                                     font_size=16,
+                                     x=score_label_x,
+                                     y=score_label_y - 100,
+                                     anchor_x='left',
+                                     anchor_y='center',
+                                     batch=batch))
+
+    # Counts iterations, used to correctly place scores on the score table.
+    counter = 0
+    # Counts items on top10 list that were actually used
+    # to make the correct shift when we need to show score from current run in the score table.
+    item_counter = 0
+    # Immediately after game is over the top10 list is updated so we need to green the score in the list,
+    # that equals achieved score but we need to do that only once so we don't have more greened scores
+    # when there is same score already existing in the top10 list .
+    greened_after_death = False
+    while counter < len(score_top10):
+        # add current run to the score table
+        if score_top10[item_counter] <= score < score_top10[counter - 1] and not game_over:
+            color = (34, 226, 53, 255)
+            value = score
+        # add current run to the score table after death
+        elif score_top10[item_counter] == score and game_over and not greened_after_death:
+            color = (34, 226, 53, 255)
+            value = score
+            greened_after_death = True
+            item_counter += 1
+        # records from previous run
+        else:
+            color = (255, 255, 255, 255)
+            value = score_top10[item_counter]
+            item_counter += 1
+
+        sprites.append(pyglet.text.Label(str(counter + 1),
+                                         color=color,
+                                         font_name='Times New Roman',
+                                         font_size=16,
+                                         x=score_label_x,
+                                         y=score_label_y - 25 * (counter + 6),
+                                         anchor_x='left',
+                                         anchor_y='center',
+                                         batch=batch))
+
+        sprites.append(pyglet.text.Label(" ............"[:-(len(str(value)) * 2)] + " " + str(value),
+                                         color=color,
+                                         font_name='Times New Roman',
+                                         font_size=16,
+                                         x=score_label_x + 120,
+                                         y=score_label_y - 25 * (counter + 6),
+                                         anchor_x='right',
+                                         anchor_y='center',
+                                         batch=batch))
+        counter += 1
 
 
 # every time user presses key do this
@@ -287,7 +389,10 @@ def on_key_press(symbol, modifiers):
 
     # managing key input for game play
     if game_running and not game_over:
-        if symbol == pyglet.window.key.LEFT or symbol == pyglet.window.key.RIGHT or symbol == pyglet.window.key.UP or symbol == pyglet.window.key.DOWN:
+        if symbol == pyglet.window.key.LEFT\
+                or symbol == pyglet.window.key.RIGHT \
+                or symbol == pyglet.window.key.UP \
+                or symbol == pyglet.window.key.DOWN:
             if not game_in_progress:
                 pyglet.clock.schedule_interval(movement, 1 / game_speed)
                 game_running = True
@@ -423,6 +528,10 @@ def on_key_press(symbol, modifiers):
             show_main_menu = True
             game_running = False
             reset()
+        elif symbol == pyglet.window.key.ESCAPE:
+            pyglet.clock.unschedule(movement)
+            window.close()
+            return pyglet.event.EVENT_HANDLED
 
 
 def set_window_size(width, height):
@@ -439,6 +548,7 @@ def set_window_size(width, height):
 def movement(dt):
     if game_running and not game_over:
         global snake_body
+        global score
         # after movement is done, this is were a new part would go
         apple_increment_part = [snake_body[-1][0], snake_body[-1][1]]
 
@@ -487,6 +597,7 @@ def movement(dt):
         if snake_body[0][0] == apple[0] + 2 and snake_body[0][1] == apple[1] + 2:
             snake_body.append(apple_increment_part)
             apple = generate_random_apple()
+            score += 1
 
 
 def is_alive(x, y):
@@ -517,6 +628,7 @@ def die():
     game_over = True
     game_in_progress = False
     key_cash = keyCash.KeyCash()
+    log_score()
     logger.log_debug("Hit")
 
 
@@ -567,6 +679,7 @@ def reset():
     global game_over
     global show_pause_menu
     global game_in_progress
+    global score
     key_cash.reset()
     snake_body = []
     shuffle_starting_coordinates()
@@ -576,6 +689,7 @@ def reset():
     show_pause_menu = False
     game_in_progress = False
     pyglet.clock.unschedule(movement)
+    score = 0
 
 
 def shuffle_starting_coordinates():
@@ -585,6 +699,7 @@ def shuffle_starting_coordinates():
     snake_body = [starting_coordinates]
 
 
+# sets viewing logic to start the game
 def run_game():
     global show_main_menu
     show_main_menu = False
@@ -630,14 +745,36 @@ def get_game_speed_in_text():
 
 
 def save_options():
-    options = {"options": []}
-    options["options"].append({
+    data = {"options": [], "best_score": []}
+    data["options"].append({
         "window_width": window_width,
         "window_height": window_height,
         "game_speed": game_speed
     })
-    with open('options.json', 'w') as outfile:
-        json.dump(options, outfile)
+    for i, s in enumerate(score_top10):
+        data["best_score"].append({i: s})
+
+    with open('data.json', 'w') as outfile:
+        json.dump(data, outfile)
+
+
+# logs score achieved by player if he made it to the top10
+def log_score():
+    global score
+    global score_top10
+    counter = 0
+    while counter < 10:
+        try:
+            if score > score_top10[counter]:
+                score_top10.insert(counter, score)
+                break
+            counter += 1
+        except IndexError:
+            score_top10.append(score)
+            break
+    if len(score_top10) > 10:
+        score_top10.pop()
+    save_options()
 
 
 initialize()
